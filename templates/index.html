@@ -1,0 +1,738 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Stress Detection</title>
+
+<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+<!-- PDF LIBS -->
+<script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
+
+<style>
+body {
+    background: linear-gradient(to right, #e3f2fd, #bbdefb);
+    min-height: 100vh;
+    padding: 20px;
+    transition: background 0.6s ease, color 0.6s ease;
+}
+
+body.dark {
+    background: linear-gradient(to right, #121212, #1e1e1e);
+    color: #f1f1f1;
+}
+
+.card {
+    border-radius: 18px;
+    box-shadow: 0 8px 22px rgba(0,0,0,0.12);
+    margin-bottom: 20px;
+}
+
+body.dark .card {
+    background: #1f1f1f;
+    color: #f1f1f1;
+}
+
+h2 {
+    text-align: center;
+    font-weight: bold;
+    margin-bottom: 20px;
+}
+
+#avatar { font-size: 60px; text-align: center; }
+
+#gaugeWrapper { position: relative; }
+#gaugeText {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    font-size: 26px;
+    font-weight: bold;
+}
+
+.pulse {
+    animation: pulse 1.4s infinite;
+}
+@keyframes pulse {
+    0% { box-shadow: 0 0 0 0 rgba(244,67,54,0.6); }
+    70% { box-shadow: 0 0 0 15px rgba(244,67,54,0); }
+    100% { box-shadow: 0 0 0 0 rgba(244,67,54,0); }
+}
+
+.prob-bar { height: 22px; }
+</style>
+</head>
+
+<body>
+
+<h2>Stress Detection</h2>
+
+<div class="text-end mb-2">
+<button class="btn btn-sm btn-outline-secondary" onclick="toggleDark()">🌙 Dark Mode</button>
+</div>
+
+<ul class="nav nav-tabs justify-content-center mb-3">
+  <li class="nav-item">
+    <button class="nav-link active" data-bs-toggle="tab" data-bs-target="#predictTab">Stress Prediction</button>
+  </li>
+  <li class="nav-item">
+    <button class="nav-link" data-bs-toggle="tab" data-bs-target="#historyTab">📊 Stress History</button>
+  </li>
+  <li class="nav-item">
+    <button class="nav-link" data-bs-toggle="tab" data-bs-target="#dashboardTab">Model Dashboard</button>
+  </li>
+</ul>
+
+<div class="tab-content">
+
+<!-- ================= PREDICTION TAB ================= -->
+<div class="tab-pane fade show active" id="predictTab">
+<div class="container">
+<div class="row">
+
+<!-- INPUT -->
+<div class="col-md-6">
+<div class="card p-3">
+<h6 class="text-center text-primary">📱 Smartphone Usage</h6>
+
+<!-- FEATURE 3: Consent Level Selector -->
+<div class="mb-3">
+<label class="form-label"><strong>🔒 Privacy Consent Level:</strong></label>
+<select class="form-select" id="consentLevel">
+  <option value="full">Full Consent (All Features)</option>
+  <option value="limited">Limited Consent (Coarse Features Only)</option>
+  <option value="minimal">Minimal Consent (Basic Features Only)</option>
+</select>
+<small class="text-muted">Select your privacy preference</small>
+</div>
+
+<div id="avatar">🙂</div>
+<form id="stressForm"></form>
+
+<div class="d-grid gap-2 mt-3">
+<button class="btn btn-primary" onclick="predict()">Predict Stress</button>
+<button class="btn btn-outline-danger" onclick="resetForm()">Reset</button>
+<button class="btn btn-outline-primary" onclick="downloadPDF()">📄 Download PDF Report</button>
+<button class="btn btn-outline-info btn-sm" onclick="addTestHistory()" title="Add 3 test readings to see trajectory prediction">🧪 Add Test History (3 readings)</button>
+</div>
+</div>
+</div>
+
+<!-- RESULT -->
+<div class="col-md-6">
+<div class="card p-3" id="resultCard">
+<h6 class="text-center text-success">🧠 Stress Result</h6>
+
+<div id="gaugeWrapper">
+<canvas id="gauge" height="220"></canvas>
+<div id="gaugeText">0%</div>
+</div>
+
+<div id="explain" class="fw-bold text-center mt-2"></div>
+
+<!-- FEATURE 1: Stress Trajectory Display -->
+<div id="trajectorySection" class="mt-3 d-none">
+<h6 class="text-center text-info">📈 Stress Trajectory Prediction</h6>
+<div class="alert" id="trajectoryAlert" role="alert">
+  <strong id="trajectoryStatus"></strong><br>
+  <small id="trajectoryMessage"></small>
+</div>
+<div class="text-center">
+  <small class="text-muted">Trend Slope: <span id="trendSlope"></span> | Confidence: <span id="trajectoryConfidence"></span></small>
+</div>
+</div>
+
+<!-- FEATURE 2: Explainable Reasoning Display -->
+<div id="explanationSection" class="mt-3 d-none">
+<h6 class="text-center text-primary">💡 Why This Prediction?</h6>
+<div class="card bg-light p-3 mb-2">
+  <strong id="mainExplanation"></strong>
+</div>
+<div id="detailedReasons" class="small"></div>
+<div class="mt-2">
+  <strong>Top Contributing Factors:</strong>
+  <ul id="topContributors" class="list-unstyled mt-2"></ul>
+</div>
+</div>
+
+<!-- FEATURE 4: Intelligent Alert Display -->
+<div id="alertSection" class="mt-3 d-none">
+<div id="alertCard" class="card p-3">
+  <div class="d-flex align-items-center mb-2">
+    <span id="alertIcon" class="me-2" style="font-size: 24px;">⚠️</span>
+    <h6 class="mb-0" id="alertTitle">Intelligent Alert</h6>
+    <span id="alertTimer" class="ms-auto me-2 text-muted small"></span>
+    <button type="button" class="btn-close" onclick="dismissAlert()" aria-label="Close"></button>
+  </div>
+  <div id="alertMessage" class="alert-message"></div>
+  <small class="text-muted" id="alertContext"></small>
+</div>
+</div>
+
+<div id="probabilitySection" class="mt-3 d-none">
+<h6 class="text-center">Prediction Confidence</h6>
+
+<div>Low</div>
+<div class="progress mb-2">
+  <div id="probLow" class="progress-bar bg-success prob-bar"></div>
+</div>
+
+<div>Medium</div>
+<div class="progress mb-2">
+  <div id="probMedium" class="progress-bar bg-warning prob-bar"></div>
+</div>
+
+<div>High</div>
+<div class="progress mb-2">
+  <div id="probHigh" class="progress-bar bg-danger prob-bar"></div>
+</div>
+</div>
+
+</div>
+</div>
+
+</div>
+</div>
+</div>
+
+<!-- ================= STRESS HISTORY TAB ================= -->
+<div class="tab-pane fade" id="historyTab">
+<div class="container mt-3">
+<h5 class="text-center mb-4">📈 Stress Trajectory History</h5>
+
+<div class="row mb-3">
+  <div class="col-md-12">
+    <div class="card">
+      <div class="card-body">
+        <canvas id="trajectoryChart" height="100"></canvas>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="row">
+  <div class="col-md-12">
+    <div class="card">
+      <div class="card-header">
+        <h6>Historical Stress Predictions</h6>
+      </div>
+      <div class="card-body">
+        <div id="historyTable" class="table-responsive">
+          <table class="table table-striped">
+            <thead>
+              <tr>
+                <th>Date & Time</th>
+                <th>Stress Score</th>
+                <th>Stress Level</th>
+                <th>Trajectory</th>
+                <th>Trend Slope</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody id="historyTableBody">
+              <tr><td colspan="6" class="text-center text-muted">No history available. Make predictions to see your stress trajectory!</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="mt-3">
+          <button class="btn btn-sm btn-outline-danger" onclick="clearHistory()">Clear History</button>
+          <button class="btn btn-sm btn-outline-primary" onclick="loadHistory()">Refresh</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+</div>
+</div>
+
+<!-- ================= DASHBOARD TAB ================= -->
+<div class="tab-pane fade" id="dashboardTab">
+<div class="container mt-3">
+
+<div class="row text-center">
+  <div class="col-md-4"><div class="card p-3"><h6>Accuracy</h6><h4>{{ accuracy }}%</h4></div></div>
+  <div class="col-md-4"><div class="card p-3"><h6>RMSE</h6><h4>{{ rmse }}</h4></div></div>
+  <div class="col-md-4"><div class="card p-3"><h6>MAE</h6><h4>{{ mae }}</h4></div></div>
+</div>
+
+<hr>
+
+<h6 class="text-center">Confusion Matrix</h6>
+<img src="/static/confusion_matrix.png" class="img-fluid d-block mx-auto" width="400">
+
+<hr>
+
+<h6 class="text-center">Feature Importance</h6>
+<img src="/static/feature_importance.png" class="img-fluid d-block mx-auto" width="600">
+
+</div>
+</div>
+
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
+
+<script>
+const fields=[
+"Daily_Screen_Time_Hours","Phone_Unlocks_Per_Day","Social_Media_Usage_Hours",
+"Gaming_Usage_Hours","Streaming_Usage_Hours","Messaging_Usage_Hours",
+"Work_Related_Usage_Hours","Sleep_Hours","Physical_Activity_Hours",
+"Time_Spent_With_Family_Hours","Online_Shopping_Hours","Push_Notifications_Per_Day"
+];
+
+stressForm.innerHTML = fields.map(f=>`
+<label>${f.replaceAll("_"," ")}</label>
+<input type="number" step="0.1" class="form-control mb-2" id="${f}">
+`).join("");
+
+let lastResult=null;
+let trajectoryChart = null;
+
+// Get or create consistent user ID from localStorage
+function getUserId(){
+ let userId = localStorage.getItem("stress_user_id");
+ if(!userId){
+   userId = "user_" + Date.now();
+   localStorage.setItem("stress_user_id", userId);
+ }
+ return userId;
+}
+
+// Save prediction to history
+function saveToHistory(predictionData){
+ const userId = getUserId();
+ let history = JSON.parse(localStorage.getItem(`stress_history_${userId}`) || "[]");
+ 
+ const historyEntry = {
+   timestamp: new Date().toISOString(),
+   stress_score: predictionData.stress_score,
+   stress_level: predictionData.stress_level,
+   stress_percentage: predictionData.stress_percentage,
+   trajectory: predictionData.trajectory?.trajectory || "stable",
+   trend_slope: predictionData.trajectory?.trend_slope || 0,
+   probabilities: predictionData.probabilities,
+   alert: predictionData.alert
+ };
+ 
+ history.push(historyEntry);
+ // Keep last 30 entries
+ if(history.length > 30){
+   history = history.slice(-30);
+ }
+ 
+ localStorage.setItem(`stress_history_${userId}`, JSON.stringify(history));
+ return history;
+}
+
+// Load history from localStorage
+function loadHistory(){
+ const userId = getUserId();
+ const history = JSON.parse(localStorage.getItem(`stress_history_${userId}`) || "[]");
+ 
+ const tbody = document.getElementById("historyTableBody");
+ 
+ if(history.length === 0){
+   tbody.innerHTML = '<tr><td colspan="6" class="text-center text-muted">No history available. Make predictions to see your stress trajectory!</td></tr>';
+   return;
+ }
+ 
+ tbody.innerHTML = history.map((entry, idx) => {
+   const date = new Date(entry.timestamp);
+   const dateStr = date.toLocaleDateString();
+   const timeStr = date.toLocaleTimeString();
+   const trajectoryClass = entry.trajectory === "increasing" ? "text-danger" : 
+                          entry.trajectory === "recovering" ? "text-success" : "text-info";
+   
+   return `
+     <tr>
+       <td>${dateStr}<br><small class="text-muted">${timeStr}</small></td>
+       <td><strong>${entry.stress_score}</strong></td>
+       <td><span class="badge ${entry.stress_level === 'High' ? 'bg-danger' : entry.stress_level === 'Medium' ? 'bg-warning' : 'bg-success'}">${entry.stress_level}</span></td>
+       <td><span class="${trajectoryClass}">${entry.trajectory.toUpperCase()}</span></td>
+       <td>${entry.trend_slope.toFixed(3)}</td>
+       <td><button class="btn btn-sm btn-outline-primary" onclick="viewDetails(${idx})">View</button></td>
+     </tr>
+   `;
+ }).reverse().join(""); // Show most recent first
+ 
+ // Update chart
+ updateTrajectoryChart(history);
+}
+
+// Update trajectory chart
+function updateTrajectoryChart(history){
+ const ctx = document.getElementById("trajectoryChart");
+ if(!ctx) return;
+ 
+ // Destroy existing chart if it exists
+ if(trajectoryChart){
+   trajectoryChart.destroy();
+ }
+ 
+ if(history.length === 0) return;
+ 
+ // Sort by timestamp
+ const sortedHistory = [...history].sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
+ 
+ const labels = sortedHistory.map(entry => {
+   const date = new Date(entry.timestamp);
+   return date.toLocaleDateString() + " " + date.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+ });
+ 
+ const scores = sortedHistory.map(entry => entry.stress_score);
+ const levels = sortedHistory.map(entry => entry.stress_level);
+ 
+ // Color based on stress level
+ const colors = levels.map(level => {
+   if(level === "High") return "rgba(244, 67, 54, 0.8)";
+   if(level === "Medium") return "rgba(255, 193, 7, 0.8)";
+   return "rgba(76, 175, 80, 0.8)";
+ });
+ 
+ trajectoryChart = new Chart(ctx, {
+   type: "line",
+   data: {
+     labels: labels,
+     datasets: [{
+       label: "Stress Score",
+       data: scores,
+       borderColor: "rgb(33, 150, 243)",
+       backgroundColor: "rgba(33, 150, 243, 0.1)",
+       borderWidth: 2,
+       pointRadius: 4,
+       pointBackgroundColor: colors,
+       pointBorderColor: colors,
+       tension: 0.4
+     }]
+   },
+   options: {
+     responsive: true,
+     maintainAspectRatio: true,
+     plugins: {
+       title: {
+         display: true,
+         text: "Stress Trajectory Over Time"
+       },
+       legend: {
+         display: true
+       }
+     },
+     scales: {
+       y: {
+         beginAtZero: true,
+         title: {
+           display: true,
+           text: "Stress Score"
+         }
+       },
+       x: {
+         title: {
+           display: true,
+           text: "Date & Time"
+         },
+         ticks: {
+           maxRotation: 45,
+           minRotation: 45
+         }
+       }
+     }
+   }
+ });
+}
+
+// View details of a specific history entry
+function viewDetails(index){
+ const userId = getUserId();
+ const history = JSON.parse(localStorage.getItem(`stress_history_${userId}`) || "[]");
+ const entry = history[history.length - 1 - index]; // Reverse index since we show most recent first
+ 
+ if(!entry) return;
+ 
+ let details = `Date: ${new Date(entry.timestamp).toLocaleString()}\n`;
+ details += `Stress Score: ${entry.stress_score}\n`;
+ details += `Stress Level: ${entry.stress_level}\n`;
+ details += `Trajectory: ${entry.trajectory}\n`;
+ details += `Trend Slope: ${entry.trend_slope}\n`;
+ details += `\nProbabilities:\n`;
+ details += `  Low: ${entry.probabilities.Low}%\n`;
+ details += `  Medium: ${entry.probabilities.Medium}%\n`;
+ details += `  High: ${entry.probabilities.High}%\n`;
+ 
+ if(entry.alert){
+   details += `\nAlert: ${entry.alert.type} (${entry.alert.severity})\n`;
+   details += `Message: ${entry.alert.message}`;
+ }
+ 
+ alert(details);
+}
+
+// Clear history
+function clearHistory(){
+ if(confirm("Are you sure you want to clear all stress history? This cannot be undone.")){
+   const userId = getUserId();
+   localStorage.removeItem(`stress_history_${userId}`);
+   loadHistory();
+ }
+}
+
+// Load history when history tab is shown
+document.addEventListener("DOMContentLoaded", function(){
+ const historyTab = document.querySelector('[data-bs-target="#historyTab"]');
+ if(historyTab){
+   historyTab.addEventListener("shown.bs.tab", function(){
+     loadHistory();
+   });
+ }
+});
+
+let gauge=new Chart(document.getElementById("gauge"),{
+type:"doughnut",
+data:{datasets:[{data:[0,100],backgroundColor:["#2196f3","#eee"],borderWidth:0}]},
+options:{cutout:"70%",animation:{duration:1200}}
+});
+
+function predict(){
+ let data={}; fields.forEach(f=>data[f]=+document.getElementById(f).value||0);
+ 
+ // FEATURE 3: Add consent level and user ID
+ data.consent_level = document.getElementById("consentLevel").value;
+ data.user_id = getUserId(); // Use consistent user ID from localStorage
+
+ fetch("/predict",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(data)})
+ .then(r=>r.json())
+ .then(res=>{
+   lastResult={data,res};
+
+   document.getElementById("probabilitySection").classList.remove("d-none");
+
+   probLow.style.width=res.probabilities.Low+"%";
+   probLow.innerText=res.probabilities.Low+"%";
+   probMedium.style.width=res.probabilities.Medium+"%";
+   probMedium.innerText=res.probabilities.Medium+"%";
+   probHigh.style.width=res.probabilities.High+"%";
+   probHigh.innerText=res.probabilities.High+"%";
+
+   // Use actual normalized stress percentage instead of hardcoded values
+   let stressPercentage = res.stress_percentage || 50; // Fallback to 50 if not provided
+   
+   // Determine color and emoji based on stress level
+   let color, emoji;
+   
+   if(res.stress_level==="Low"){
+     color="#4caf50"; emoji="😄";
+     document.body.style.background="linear-gradient(to right,#e8f5e9,#c8e6c9)";
+     resultCard.classList.remove("pulse");
+   } else if(res.stress_level==="Medium"){
+     color="#ffca28"; emoji="😐";
+     document.body.style.background="linear-gradient(to right,#fff8e1,#ffecb3)";
+     resultCard.classList.remove("pulse");
+   } else {
+     color="#f44336"; emoji="😫";
+     document.body.style.background="linear-gradient(to right,#ffebee,#ffcdd2)";
+     resultCard.classList.add("pulse");
+   }
+
+   avatar.innerText=emoji;
+   explain.innerText="Predicted Stress Level: "+res.stress_level + " (Score: " + res.stress_score + ")";
+
+   // Use actual stress percentage for gauge
+   gauge.data.datasets[0].backgroundColor=[color,"#eee"];
+   gauge.data.datasets[0].data=[stressPercentage,100-stressPercentage];
+   gauge.update();
+
+   animatePercent(stressPercentage);
+   
+   // Save to history
+   saveToHistory(res);
+   
+   // FEATURE 1: Display Stress Trajectory
+   if(res.trajectory){
+     const traj = res.trajectory;
+     document.getElementById("trajectorySection").classList.remove("d-none");
+     document.getElementById("trajectoryStatus").innerText = "Trajectory: " + traj.trajectory.toUpperCase();
+     document.getElementById("trajectoryMessage").innerText = traj.message;
+     document.getElementById("trendSlope").innerText = traj.trend_slope;
+     document.getElementById("trajectoryConfidence").innerText = traj.confidence;
+     
+     const alertDiv = document.getElementById("trajectoryAlert");
+     if(traj.trajectory === "increasing"){
+       alertDiv.className = "alert alert-danger";
+     } else if(traj.trajectory === "recovering"){
+       alertDiv.className = "alert alert-success";
+     } else {
+       alertDiv.className = "alert alert-info";
+     }
+   }
+   
+   // FEATURE 2: Display Explainable Reasoning
+   if(res.explanation){
+     const exp = res.explanation;
+     document.getElementById("explanationSection").classList.remove("d-none");
+     document.getElementById("mainExplanation").innerText = exp.main_explanation;
+     
+     // Detailed reasons
+     let reasonsHtml = "<strong>Detailed Analysis:</strong><ul>";
+     exp.detailed_reasons.forEach(r => {
+       reasonsHtml += "<li>" + r + "</li>";
+     });
+     reasonsHtml += "</ul>";
+     document.getElementById("detailedReasons").innerHTML = reasonsHtml;
+     
+     // Top contributors
+     let contributorsHtml = "";
+     exp.top_contributors.forEach((c, idx) => {
+       contributorsHtml += `<li>${idx+1}. <strong>${c.feature}</strong>: ${c.value} (contribution: ${c.contribution})</li>`;
+     });
+     document.getElementById("topContributors").innerHTML = contributorsHtml;
+   }
+   
+   // FEATURE 4: Display Intelligent Alert
+   if(res.alert){
+     const alert = res.alert;
+     document.getElementById("alertSection").classList.remove("d-none");
+     document.getElementById("alertMessage").innerText = alert.message;
+     document.getElementById("alertContext").innerText = `Alert Type: ${alert.type} | Time: ${alert.time_context} | Consent: ${alert.consent_level}`;
+     
+     // Style based on severity
+     const alertCard = document.getElementById("alertCard");
+     const alertIcon = document.getElementById("alertIcon");
+     
+     if(alert.severity === "critical"){
+       alertCard.className = "card p-3 border-danger bg-danger bg-opacity-10";
+       alertIcon.innerText = "🚨";
+       alertCard.classList.add("pulse");
+     } else if(alert.severity === "high"){
+       alertCard.className = "card p-3 border-warning bg-warning bg-opacity-10";
+       alertIcon.innerText = "⚠️";
+     } else if(alert.severity === "medium"){
+       alertCard.className = "card p-3 border-info bg-info bg-opacity-10";
+       alertIcon.innerText = "ℹ️";
+     } else {
+       alertCard.className = "card p-3 border-primary bg-primary bg-opacity-10";
+       alertIcon.innerText = "💡";
+     }
+     
+     // Start countdown timer for alert display duration
+     let remainingMinutes = 7; // Alert stays for 7 minutes
+     const timerElement = document.getElementById("alertTimer");
+     
+     const updateTimer = () => {
+       if(remainingMinutes > 0){
+         timerElement.innerText = `Dismisses in ${remainingMinutes} min`;
+         remainingMinutes--;
+       } else {
+         timerElement.innerText = "";
+       }
+     };
+     
+     updateTimer(); // Initial display
+     const timerInterval = setInterval(updateTimer, 60000); // Update every minute
+     
+     // Auto-dismiss after 7 minutes (420000ms) for non-critical alerts
+     // Critical alerts remain until manually dismissed
+     if(alert.severity !== "critical"){
+       setTimeout(() => {
+         clearInterval(timerInterval);
+         if(document.getElementById("alertSection").classList.contains("d-none") === false){
+           dismissAlert();
+         }
+       }, 420000); // 7 minutes = 420,000 milliseconds
+     } else {
+       // For critical alerts, clear timer after 10 minutes (they stay longer)
+       setTimeout(() => {
+         clearInterval(timerInterval);
+         timerElement.innerText = "";
+       }, 600000); // 10 minutes
+     }
+   } else {
+     document.getElementById("alertSection").classList.add("d-none");
+   }
+ });
+}
+
+function dismissAlert(){
+ document.getElementById("alertSection").classList.add("d-none");
+}
+
+function animatePercent(target){
+ let i=0;
+ let interval=setInterval(()=>{
+   gaugeText.innerText=i+"%";
+   if(i>=target) clearInterval(interval);
+   i++;
+ },15);
+}
+
+// ================= PDF OPTION =================
+async function downloadPDF(){
+ if(!lastResult){ alert("Predict stress first"); return; }
+
+ const { jsPDF } = window.jspdf;
+ const pdf=new jsPDF();
+
+ pdf.text("Stress Detection Report",20,20);
+ pdf.text("Date: "+new Date().toLocaleString(),20,30);
+ pdf.text("Result: "+lastResult.res.stress_level,20,40);
+
+ let y=50;
+ fields.forEach(f=>{
+   pdf.text(f.replaceAll("_"," ")+": "+lastResult.data[f],20,y);
+   y+=7;
+ });
+
+ pdf.text("Recommendations:",20,y+5);
+ pdf.text(explain.innerText,20,y+15);
+
+ const img=gauge.toBase64Image();
+ pdf.addImage(img,"PNG",120,30,60,60);
+
+ pdf.save("Stress_Report.pdf");
+}
+
+function resetForm(){
+ document.querySelectorAll("input").forEach(i=>i.value="");
+ document.getElementById("consentLevel").value = "full";
+ avatar.innerText="🙂";
+ explain.innerText="";
+ gaugeText.innerText="0%";
+ gauge.data.datasets[0].data=[0,100];
+ gauge.data.datasets[0].backgroundColor=["#2196f3","#eee"];
+ gauge.update();
+ document.getElementById("probabilitySection").classList.add("d-none");
+ document.getElementById("trajectorySection").classList.add("d-none");
+ document.getElementById("explanationSection").classList.add("d-none");
+ document.getElementById("alertSection").classList.add("d-none");
+ resultCard.classList.remove("pulse");
+ lastResult = null;
+}
+
+function toggleDark(){
+ document.body.classList.toggle("dark");
+}
+
+// Helper function to add test historical data for trajectory prediction
+function addTestHistory(){
+ const userId = getUserId();
+ // Simulate 3 historical readings: increasing stress trend
+ const testScores = [20, 35, 50]; // Low to High stress progression
+ 
+ fetch("/add_test_history", {
+   method: "POST",
+   headers: {"Content-Type": "application/json"},
+   body: JSON.stringify({user_id: userId, scores: testScores})
+ })
+ .then(r => r.json())
+ .then(res => {
+   alert(`✅ Added ${res.data_points} test readings!\n\nNow make a prediction to see the trajectory analysis.\n\nTest scores added: ${res.scores.join(", ")}`);
+ });
+}
+</script>
+
+</body>
+</html>
