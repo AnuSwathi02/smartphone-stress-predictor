@@ -1,0 +1,14 @@
+#!/bin/bash
+set -eux
+
+dnf update -y
+dnf install -y docker git docker-compose-plugin
+systemctl enable docker
+systemctl start docker
+usermod -aG docker ec2-user
+
+mkdir -p /opt/patent-app
+git clone --branch ${app_branch} ${app_repo_url} /opt/patent-app
+
+cd /opt/patent-app
+docker compose -f deploy/docker-compose.yml up -d --build
