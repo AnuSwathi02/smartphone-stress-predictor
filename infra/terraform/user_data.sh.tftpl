@@ -1,19 +1,21 @@
 #!/bin/bash
 set -eux
 
+dnf clean all
 dnf update -y
-dnf install -y docker git
+dnf install -y cloud-utils-growpart docker git
+
+growpart /dev/nvme0n1 1 || true
+xfs_growfs / || true
+
 systemctl enable docker
 systemctl start docker
 usermod -aG docker ec2-user
-
-install -d -m 0755 /usr/local/lib/docker/cli-plugins
-curl -SL https://github.com/docker/compose/releases/latest/download/docker-compose-linux-x86_64 \
-  -o /usr/local/lib/docker/cli-plugins/docker-compose
-chmod +x /usr/local/lib/docker/cli-plugins/docker-compose
 
 mkdir -p /opt/patent-app
 git clone --branch ${app_branch} ${app_repo_url} /opt/patent-app
 
 cd /opt/patent-app
-docker compose -f deploy/docker-compose.yml up -d --build
+docker rm -f patent-app || true
+docker build -t patent-app .
+docker run -d --name patent-app --restart unless-stopped -p 80:8000 patent-app
