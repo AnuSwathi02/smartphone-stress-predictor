@@ -40,9 +40,18 @@ ALERT_WINDOW_SIZE = 10  # Store last 10 alerts per user
 ALERT_DISPLAY_DURATION_MINUTES = 7  # Alert remains visible for 7 minutes
 
 # ---------------- LOAD DATASET ----------------
-csv_path = r"C:\Users\vijai\Downloads\mobile_addiction_data.csv"
-if not os.path.exists(csv_path):
-    raise FileNotFoundError(f"Dataset not found at {csv_path}")
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+csv_candidates = [
+    os.environ.get("MOBILE_ADDICTION_DATASET"),
+    os.path.join(BASE_DIR, "mobile_addiction_data.csv"),
+]
+
+csv_path = next((path for path in csv_candidates if path and os.path.exists(path)), None)
+if csv_path is None:
+    raise FileNotFoundError(
+        "Dataset not found. Put 'mobile_addiction_data.csv' in the project folder "
+        "or set the MOBILE_ADDICTION_DATASET environment variable to the CSV path."
+    )
 
 df = pd.read_csv(csv_path)
 df.dropna(inplace=True)
@@ -690,5 +699,6 @@ def download_report():
 
 # ---------------- RUN ----------------
 if __name__ == "__main__":
-    print("Server running at http://127.0.0.1:5000/")
-    app.run(debug=True)
+    port = int(os.environ.get("PORT", 8000))
+    print(f"Server running at http://0.0.0.0:{port}/")
+    app.run(host="0.0.0.0", port=port, debug=False)

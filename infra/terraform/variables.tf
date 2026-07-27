@@ -50,3 +50,9 @@ variable "public_subnet_cidr" {
   type        = string
   default     = "10.0.1.0/24"
 }
+
+variable "root_volume_size" {
+  description = "Root EBS volume size for the EC2 instance in GiB."
+  type        = number
+  default     = 10
+}

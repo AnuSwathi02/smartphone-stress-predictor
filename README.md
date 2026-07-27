@@ -1,203 +1,87 @@
-# 📱 Smartphone Stress Detection System
+# Patent App Deployment
 
-A web app that predicts your stress level based on your daily smartphone usage habits — and tells you whether your stress is getting better, worse, or staying the same over time.
+This project deploys a Dockerized Flask-based patent application to an AWS EC2 virtual machine provisioned entirely with Terraform.
 
----
+## How It Is Exposed To The Internet
 
-## 🤔 What Is This?
+The application is exposed publicly through:
 
-Most stress apps just tell you "you're stressed right now." This one goes further — it tracks your stress over time and predicts the **direction** it's heading. Are things getting worse? Are you recovering? It'll tell you, and it'll alert you before things get critical.
+1. A custom AWS VPC created with Terraform
+2. A public subnet connected to an internet gateway
+3. A route table that sends internet traffic through that gateway
+4. An EC2 instance with a public IP inside the public subnet
+5. An AWS security group that allows inbound traffic on port `80`
+6. An Nginx container listening on port `80`
+7. Nginx forwarding requests to the Flask app container on port `8000`
 
-Built as part of a pervasive computing project, this app uses a **Random Forest** model trained on real mobile usage data to predict stress levels from your daily phone habits like screen time, sleep, social media usage, and more.
+That means users access:
 
----
+`http://<ec2-public-ip>`
 
-## ✨ Features
+## Architecture
 
-### 1. 🔮 Stress Trajectory Prediction
-Not just "your stress is HIGH" — but "your stress has been **increasing for 3 days**, take action now." Uses a 7-day sliding window and linear regression to detect trends.
+```mermaid
+flowchart LR
+    Dev[Developer] -->|terraform apply| TF[Terraform]
+    TF --> AWS[AWS]
+    Dev -->|git push| GitHub[GitHub Repository]
 
-### 2. 🧠 Explainable Predictions
-Tells you *why* the model made that prediction — which factors contributed the most (e.g., "High screen time and low sleep are your biggest stress drivers").
+    User[Internet User] -->|HTTP :80| SG[AWS Security Group]
+    SG --> VPC[Custom VPC]
+    RT[Route Table 0.0.0.0/0] --> IGW[Internet Gateway]
+    VPC --> Subnet[Public Subnet]
+    Subnet --> EC2[AWS EC2 VM]
+    Subnet --> RT
+    IGW --> VPC
+    AWS --> EC2
 
-### 3. 🔒 Consent-Aware Privacy
-You choose how much data to share:
-- **Full consent** → All 12 features used, detailed results
-- **Limited consent** → Only broad features (screen time, sleep, activity)
-- **Minimal consent** → Just screen time and sleep
-
-### 4. 🚨 Intelligent Alert System
-Smart alerts that don't spam you. Alerts adapt based on:
-- Your consent level (more detail = more specific alert)
-- Time of day (night-time high stress triggers a "digital detox" alert)
-- Repeated stress spikes (escalates to critical alert after 3+ high readings)
-- 30-minute cooldown between same-type alerts
-
-### 5. 📄 PDF Report Download
-Download a full report of your prediction including trajectory, explanation, contributing factors, and consent level used.
-
----
-
-## 🛠️ Tech Stack
-
-| Layer | Technology |
-|-------|-----------|
-| Backend | Python, Flask |
-| ML Models | Random Forest (Classifier + Regressor) |
-| Data Balancing | SMOTE (imbalanced-learn) |
-| Trend Analysis | Linear Regression (scipy) |
-| Visualizations | Matplotlib, Seaborn |
-| PDF Generation | ReportLab |
-| Frontend Storage | Browser localStorage (for user history) |
-
----
-
-## 📂 Project Structure
-
+    EC2 --> Docker[Docker Engine]
+    EC2 --> Compose[Docker Compose]
+    EC2 -->|git clone during boot| GitHub
+    Compose --> Docker
+    Docker --> Nginx[Nginx Container :80]
+    Docker --> Flask[Flask App Container :8000]
+    Nginx --> Flask
+    Flask --> Data[(CSV + Model Files)]
 ```
-stress-detection-app/
-│
-├── app.py                          # Main Flask app + all ML logic
-├── stress_model.pkl                # Pre-trained model
-├── requirements.txt                # Python dependencies
-│
-├── static/
-│   ├── confusion_matrix.png        # Auto-generated on startup
-│   └── feature_importance.png      # Auto-generated on startup
-│
+
+## Folder Structure
+
+```text
+pervasive project/
+├── app.py
+├── Dockerfile
+├── requirements.txt
+├── mobile_addiction_data.csv
+├── stress_model.pkl
 ├── templates/
-│   └── index.html                  # Frontend UI
-│
-├── STRESS_TRAJECTORY_EXPLANATION.md
-├── INTELLIGENT_ALERT_SYSTEM.md
-├── HOW_TO_GET_3_HISTORICAL_READINGS.md
-└── RUN_LOCALHOST.md
+├── static/
+├── deploy/
+│   ├── docker-compose.yml
+│   └── nginx/
+│       └── default.conf
+├── infra/
+│   └── terraform/
+│       ├── main.tf
+│       ├── outputs.tf
+│       ├── terraform.tfvars.example
+│       ├── user_data.sh.tftpl
+│       ├── variables.tf
+│       └── versions.tf
+└── docs/
+    ├── DEPLOY_AWS_TERRAFORM.md
+    ├── HOW_TO_GET_3_HISTORICAL_READINGS.md
+    ├── INTELLIGENT_ALERT_SYSTEM.md
+    ├── RUN_LOCALHOST.md
+    └── STRESS_TRAJECTORY_EXPLANATION.md
 ```
 
----
+## Local Docker Run
 
-## 🚀 How to Run Locally
-
-### Step 1: Clone the repo
 ```bash
-git clone https://github.com/SUBASHREE15S/Stress-Detection.git
-cd Stress-Detection
+docker compose -f deploy/docker-compose.yml up --build
 ```
 
-### Step 2: Install dependencies
-```bash
-pip install -r requirements.txt
-```
+Then open:
 
-### Step 3: Add your dataset
-Place your `mobile_addiction_data.csv` file somewhere on your system and update this line in `app.py`:
-
-```python
-csv_path = r"C:\path\to\your\mobile_addiction_data.csv"
-```
-
-### Step 4: Run the app
-```bash
-python app.py
-```
-
-### Step 5: Open in browser
-```
-http://127.0.0.1:5000/
-```
-
----
-
-## 📊 Input Features
-
-The model uses these 12 features from your daily phone usage:
-
-| Feature | Description |
-|---------|-------------|
-| Daily Screen Time (hrs) | Total hours phone screen was on |
-| Phone Unlocks Per Day | How many times you picked up your phone |
-| Social Media Usage (hrs) | Time on Instagram, Twitter, etc. |
-| Gaming Usage (hrs) | Time spent on mobile games |
-| Streaming Usage (hrs) | YouTube, Netflix, etc. |
-| Messaging Usage (hrs) | WhatsApp, SMS, etc. |
-| Work-Related Usage (hrs) | Emails, work apps |
-| Sleep Hours | Hours of sleep per night |
-| Physical Activity (hrs) | Exercise or movement |
-| Time With Family (hrs) | Offline social time |
-| Online Shopping (hrs) | Time on shopping apps |
-| Push Notifications/Day | Number of notifications received |
-
----
-
-## 🎯 How Stress Is Calculated
-
-```
-Stress Score =
-  (Screen Time × 2) + (Unlocks × 0.3) + (Social Media × 1.5)
-  + (Gaming × 1.5) + (Streaming × 1.2) + (Work Usage × 1.3)
-  + (Notifications × 0.2)
-  − (Sleep × 4) − (Physical Activity × 3) − (Family Time × 2)
-```
-
-The score is then classified into **Low / Medium / High** using the 33rd and 66th percentiles.
-
----
-
-## 📈 Trajectory Prediction — How It Works
-
-1. Every prediction you make is saved with a timestamp
-2. After **3 or more predictions**, linear regression calculates the trend
-3. Based on the slope:
-   - **Slope > +2.0** → INCREASING ⚠️
-   - **Slope < −2.0** → RECOVERING ✅
-   - **In between** → STABLE 📊
-
-> To quickly test this, click the **"🧪 Add Test History"** button in the app — it loads 3 sample readings instantly.
-
----
-
-## 🚨 Alert Types
-
-| Alert | Trigger | Severity |
-|-------|---------|----------|
-| Immediate | High stress + increasing trend | 🟠 High |
-| Early Warning | Moderate stress + rising trend | 🟢 Low |
-| Digital Detox | High stress during night hours (10PM–6AM) | 🔵 Medium |
-| Escalated | 3+ consecutive high stress readings | 🔴 Critical |
-
-Alerts have a **30-minute cooldown** — no spam. Critical alerts never auto-dismiss.
-
----
-
-## 📋 Requirements
-
-```
-Flask==3.0.0
-pandas==2.1.4
-numpy==1.26.2
-scikit-learn==1.3.2
-imbalanced-learn==0.11.0
-matplotlib==3.8.2
-seaborn==0.13.0
-reportlab==4.0.7
-scipy==1.11.4
-```
-
----
-
-## 🔮 Future Improvements
-
-- Connect to real phone usage APIs (Android Digital Wellbeing, iOS Screen Time)
-- Push notifications to mobile
-- Persistent user accounts across devices
-- Integration with wearables for heart rate and sleep data
-
----
-
-## 👩‍💻 Built By
-
-**ANU SWATHI V.R** 
-
-**SUBASHREE S**
-
-**LAHARI K.R**
+`http://localhost`

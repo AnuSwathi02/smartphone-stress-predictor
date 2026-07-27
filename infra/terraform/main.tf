@@ -120,10 +120,16 @@ resource "aws_instance" "app" {
   associate_public_ip_address = true
   key_name               = aws_key_pair.app.key_name
 
+  root_block_device {
+    volume_size = var.root_volume_size
+    volume_type = "gp3"
+  }
+
   user_data = templatefile("${path.module}/user_data.sh.tftpl", {
     app_repo_url = var.app_repo_url
     app_branch   = var.app_branch
   })
+  user_data_replace_on_change = true
 
   tags = {
     Name = "${var.project_name}-vm"
