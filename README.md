@@ -276,7 +276,7 @@ For infrastructure changes, run `terraform plan` and include the output in the p
 
 ## 👩‍💻 Author
 
-**Anu Swathi V. R.**
+**Anu Swathi V.R.**
 Integrated M.Tech – Computer Science and Engineering (Data Science)
 Vellore Institute of Technology (VIT), Vellore
 
