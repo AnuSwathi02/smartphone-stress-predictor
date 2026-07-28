@@ -277,11 +277,18 @@ For infrastructure changes, run `terraform plan` and include the output in the p
 ## 👩‍💻 Author
 
 **Anu Swathi V.R.**
-Integrated M.Tech – Computer Science and Engineering (Data Science)
+*Integrated M.Tech – Computer Science and Engineering (Data Science)*
 Vellore Institute of Technology (VIT), Vellore
 
-- GitHub: [https://github.com/AnuSwathi02](https://github.com/AnuSwathi02)
-- Project Repository: [https://github.com/AnuSwathi02/smartphone-stress-predictor](https://github.com/AnuSwathi02/smartphone-stress-predictor)
+<p>
+  <a href="https://github.com/AnuSwathi02">
+    <img src="https://img.shields.io/badge/GitHub-AnuSwathi02-181717?style=for-the-badge&logo=github">
+  </a>
+</p>
+
+### 📂 Project Repository
+
+**https://github.com/AnuSwathi02/smartphone-stress-predictor**
 
 ---
 
