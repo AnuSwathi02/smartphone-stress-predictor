@@ -5,7 +5,6 @@
 ![Docker](https://img.shields.io/badge/Docker-Container-2496ED)
 ![Terraform](https://img.shields.io/badge/Terraform-%3E%3D1.5.0-844FBA)
 ![AWS](https://img.shields.io/badge/AWS-EC2%20%7C%20VPC-orange)
-![License](https://img.shields.io/badge/License-MIT-lightgrey)
 
 A Dockerized Flask application that predicts smartphone-addiction-related stress from behavioral data, deployed to AWS EC2 through fully automated Infrastructure as Code (Terraform).
 
@@ -26,8 +25,9 @@ A Dockerized Flask application that predicts smartphone-addiction-related stress
 - [Running Locally without Docker](#running-locally-without-docker)
 - [Troubleshooting](#troubleshooting)
 - [Tech Stack](#tech-stack)
-- [License](#license)
 - [Contributing](#contributing)
+- [Author](#-author)
+- [License](#-license)
 
 ---
 
@@ -69,44 +69,9 @@ http://13.206.83.198
 
 ## Architecture
 
-```mermaid
-flowchart LR
-    U[Internet User] -->|HTTP :80| SG[Security Group]
-    D[Developer] -->|terraform apply| TF[Terraform]
-    D -->|git push| GH[GitHub Repo<br/>main branch]
-    D -->|SSH with PEM key| EC2
+![AWS Terraform Deployment — Flask App on EC2 with Docker](assets/aws-terraform-deployment.jpeg)
 
-    subgraph AWS[AWS Cloud]
-        subgraph VPC[Custom VPC]
-            IGW[Internet Gateway]
-            RT[Route Table<br/>0.0.0.0/0]
-            SUBNET[Public Subnet]
-            KP[EC2 Key Pair<br/>demo-project.pem]
-            SG
-            EC2[EC2 Instance<br/>t3.micro<br/>Public IP]
-        end
-    end
-
-    TF -->|provisions| VPC
-    TF -->|creates| KP
-    IGW --> RT
-    RT --> SUBNET
-    SUBNET --> EC2
-    SG --> EC2
-    EC2 -->|git clone / git pull| GH
-
-    subgraph HOST[Inside EC2 VM]
-        DE[Docker Engine]
-        APP[Docker Container<br/>patent-app<br/>Flask app :8000]
-        DATA[CSV + Model Files<br/>mobile_addiction_data.csv<br/>stress_model.pkl]
-    end
-
-    EC2 --> DE
-    DE -->|runs -p 80:8000| APP
-    APP --> DATA
-```
-
-**In plain terms:** the developer pushes code to GitHub and runs `terraform apply`; Terraform builds the AWS network and the EC2 instance and hands it an SSH key pair; the instance pulls the code from GitHub, builds the Docker image, and runs it on port 80; internet users hit that port through the security group, and the developer can SSH in directly with the generated `.pem` key for maintenance.
+**In plain terms:** the developer pushes code to GitHub and runs `terraform apply`; Terraform provisions the VPC, subnet, route table, internet gateway, security group, EC2 key pair, and EC2 instance. The instance clones the repository, and Docker Engine runs the `patent-app` Flask container (published on port `80:8000`), which reads `mobile_addiction_data.csv` and `stress_model.pkl`. Internet users reach the app over `HTTP :80` through the security group, and the developer can SSH in using the generated key pair for maintenance.
 
 ---
 
@@ -161,6 +126,8 @@ smartphone-stress-predictor/
 ├── requirements.txt                # Python dependencies
 ├── mobile_addiction_data.csv       # Training/usage dataset
 ├── stress_model.pkl                # Serialized trained model
+├── assets/
+│   └── aws-terraform-deployment.jpeg  # Architecture diagram used in this README
 ├── templates/
 │   └── index.html                  # Dashboard UI
 ├── static/
@@ -294,12 +261,6 @@ This runs Flask directly on the host without a container or reverse proxy — us
 
 ---
 
-## License
-
-This project is licensed under the MIT License. Add a `LICENSE` file at the repository root if one is not already present.
-
----
-
 ## Contributing
 
 Contributions are welcome. To propose a change:
@@ -310,3 +271,20 @@ Contributions are welcome. To propose a change:
 4. Open a pull request describing the change and its motivation.
 
 For infrastructure changes, run `terraform plan` and include the output in the pull request description so reviewers can see the exact resources affected before `apply`.
+
+---
+
+## 👩‍💻 Author
+
+**Anu Swathi V. R.**
+Integrated M.Tech – Computer Science and Engineering (Data Science)
+Vellore Institute of Technology (VIT), Vellore
+
+- GitHub: [https://github.com/AnuSwathi02](https://github.com/AnuSwathi02)
+- Project Repository: [https://github.com/AnuSwathi02/smartphone-stress-predictor](https://github.com/AnuSwathi02/smartphone-stress-predictor)
+
+---
+
+## 📄 License
+
+This project is intended for educational purposes and demonstrates cloud deployment using Terraform, Docker, AWS, and Flask.
